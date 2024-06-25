@@ -9,6 +9,9 @@ using CsvHelper.Configuration;
 using System.Globalization;
 using Nest;
 using System.Text;
+using System.Text.Json.Serialization;
+using System.Net.Http.Json;
+using Newtonsoft.Json;
 
 class Program
 {
@@ -25,10 +28,40 @@ class Program
         {
             foreach (var requestId in requestIdList)
             {
+                //取回elk REQUEST log
                 var result = Query(requestId);
 
-                // Process the response
-                Console.WriteLine($"RequestId: {requestId}, Response: {result}");
+                //取得api url
+                
+                var urlStart = result.IndexOf("REQUEST URL: ");
+                var urlEnd = result.IndexOf(", Method:");
+                var url = result.Substring(urlStart + 13, urlEnd - urlStart - 13);
+
+                //取得request內容
+                var bodyStart = result.IndexOf("REQUEST BODY: ");
+                var body = result.Substring(bodyStart + 14);
+                List<KeyValue> keyValuePairs = JsonConvert.DeserializeObject<List<KeyValue>>(body);
+                var formData = new Dictionary<string, string>();
+                foreach (var kvp in keyValuePairs)
+                {
+                    formData[kvp.Key] = kvp.Value[0];
+                }
+
+                // 發送請求             
+                var response = await client.PostAsync(url, new FormUrlEncodedContent(formData));
+
+
+                if (response.IsSuccessStatusCode)
+                {
+                    string apiResult = await response.Content.ReadAsStringAsync();
+                    Console.WriteLine("API Response: " + apiResult);
+                }
+                else
+                {
+                    Console.WriteLine("Error: " + response.StatusCode);
+                }
+
+                Console.WriteLine($"{body}");               
                 AppendResultsToFile(outputFilePath, result);
             }
         }
@@ -95,8 +128,16 @@ class Program
     {
         using (StreamWriter writer = File.AppendText(filePath))
         {
-             await writer.WriteLineAsync(result);            
+            await writer.WriteLineAsync(result);
         }
     }
+
+
+    public class KeyValue
+    {
+        public string Key { get; set; }
+        public List<string> Value { get; set; }
+    }
+
 
 }

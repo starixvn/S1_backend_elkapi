@@ -13,6 +13,9 @@
   </ItemGroup>
 
   <ItemGroup>
+    <None Update="pg _test.csv">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </None>
     <None Update="pg.csv">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </None>

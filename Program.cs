@@ -14,38 +14,8 @@ class Program
 {
     static async Task Main(string[] args)
     {
-        var elasticClient = GetElasticClient();
-        var result = elasticClient.Search<dynamic>(a => a
-                .From(0)
-                .Size(10)
-                .Sort(ss => ss.Descending("Timestamp"))
-                .Index("prod-seamless-2024.26")
-                .Query(q => q
-                    .Bool(b => b
-                        .Must(
-                            
-                       q => q.Term(mt => mt
-                                .Field("Properties.RequestId")
-                                .Value("0HN4H0ONRK6LB:000347D2")),
-                              q => q.DateRange(dr => dr
-                                .Field("Timestamp")
-                                .GreaterThanOrEquals(DateTime.Now.AddDays(-1))
-                                .LessThanOrEquals(DateTime.Now)),
-                              q => q.Term(t => t
-                                .Field("Properties.SourceContext")
-                                .Value("RequestLog"))
-                              )
-                           
-                        )
-                    ));
-
-
-
-        // Path to the CSV file
-        string csvFilePath = "pg.csv";
-
-        // ELK API endpoint
-        //string elkApiEndpoint = "https://kibana.ailabpte.co/_search";
+        string csvFilePath = "pg _test.csv";
+        string outputFilePath = "output.txt";
 
         // Read CSV file
         var requestIdList = ReadTextFile(csvFilePath);
@@ -55,10 +25,11 @@ class Program
         {
             foreach (var requestId in requestIdList)
             {
-                var response = Query(requestId);
+                var result = Query(requestId);
 
                 // Process the response
-                Console.WriteLine($"RequestId: {requestId}, Response: {response}");
+                Console.WriteLine($"RequestId: {requestId}, Response: {result}");
+                AppendResultsToFile(outputFilePath, result);
             }
         }
     }
@@ -78,22 +49,28 @@ class Program
     {
         var elasticClient = GetElasticClient();
         var response = elasticClient.Search<dynamic>(a => a
-        .From(0)
-        .Size(10)
-        .Sort(ss => ss.Descending("Timestamp"))
-        .Index("prod-seamless-2024.26")
-        .Query(q => q
-            .Bool(b => b
-                .Must(
-                    q => q.Match(mt => mt
-                    .Field("Properties.RequestId")
-                    .Query(requestId)),
-                    q => q.DateRange(dr => dr
-                    .Field("Timestamp")
-                    .GreaterThanOrEquals(DateTime.Now.AddDays(-1))
-                    .LessThanOrEquals(DateTime.Now)))
-                )
-            ));
+                .From(0)
+                .Size(10)
+                .Sort(ss => ss.Descending("Timestamp"))
+                .Index("prod-seamless-2024.26")
+                .Query(q => q
+                    .Bool(b => b
+                        .Must(
+
+                       q => q.Term(mt => mt
+                                .Field("Properties.RequestId.keyword")
+                                .Value(requestId)),
+                              q => q.DateRange(dr => dr
+                                .Field("Timestamp")
+                                .GreaterThanOrEquals(DateTime.Now.AddDays(-1))
+                                .LessThanOrEquals(DateTime.Now)),
+                              q => q.Term(t => t
+                                .Field("Properties.SourceContext.keyword")
+                                .Value("RequestLog"))
+                              )
+
+                        )
+                    ));
 
         if (response.IsValid)
         {
@@ -107,12 +84,19 @@ class Program
         return $"query error";
     }
 
-
     private static ElasticClient GetElasticClient()
     {
         var connectionSetting = new ConnectionSettings(new Uri("http://54.151.226.243:9200"))
             .BasicAuthentication("elastic", "#WpF&@$h2J8Y6LH5");
         return new ElasticClient(connectionSetting);
+    }
+
+    private static async Task AppendResultsToFile(string filePath, string result)
+    {
+        using (StreamWriter writer = File.AppendText(filePath))
+        {
+             await writer.WriteLineAsync(result);            
+        }
     }
 
 }

@@ -18,7 +18,8 @@ class Program
     static async Task Main(string[] args)
     {
         string csvFilePath = "pg _test.csv";
-        string outputFilePath = "output.txt";
+        string apiSuccessFilePath = "apiSuccess.txt";
+        string apiFailFilePath = "apiFail.txt";
 
         // Read CSV file
         var requestIdList = ReadTextFile(csvFilePath);
@@ -50,19 +51,22 @@ class Program
                 // 發送請求             
                 var response = await client.PostAsync(url, new FormUrlEncodedContent(formData));
 
-
+                var log = new StringBuilder($"{requestId}:");
                 if (response.IsSuccessStatusCode)
                 {
                     string apiResult = await response.Content.ReadAsStringAsync();
-                    Console.WriteLine("API Response: " + apiResult);
+                    log.Append(apiResult);
+                    Console.WriteLine("Success: " + log);
+                    AppendResultsToFile(apiSuccessFilePath, log.ToString());
                 }
                 else
                 {
                     Console.WriteLine("Error: " + response.StatusCode);
+                    log.Append(response.StatusCode);
+                    AppendResultsToFile(apiFailFilePath, log.ToString());
                 }
 
-                Console.WriteLine($"{body}");               
-                AppendResultsToFile(outputFilePath, result);
+                
             }
         }
     }

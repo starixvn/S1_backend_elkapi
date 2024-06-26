@@ -1,25 +1,21 @@
-﻿using System;
-using System.Collections.Generic;
-using System.IO;
-using System.Net.Http;
-using System.Net.Http.Headers;
-using System.Threading.Tasks;
-using CsvHelper;
-using CsvHelper.Configuration;
-using System.Globalization;
-using Nest;
+﻿using Nest;
 using System.Text;
-using System.Text.Json.Serialization;
-using System.Net.Http.Json;
 using Newtonsoft.Json;
 
 class Program
 {
+
     static async Task Main(string[] args)
     {
-        string csvFilePath = "pg _test.csv";
-        string apiSuccessFilePath = "apiSuccess.txt";
-        string apiFailFilePath = "apiFail.txt";
+        string part = "p1";
+        string csvFilePath = $"pg_req_{part}.csv";
+        //string csvFilePath = $"pg _test.csv";
+        string apiSuccessFilePath = $"apiSuccess_{part}.txt";
+        string apiFailFilePath = $"apiFail_{part}.txt";
+        string apiPlayerFilePath = $"apiPlayer_{part}.txt";
+        string apiRoundFilePath = $"apiRound_{part}.txt";
+        List<string> _playerList = new();
+        List<string> _parentBetIdList = new();
 
         // Read CSV file
         var requestIdList = ReadTextFile(csvFilePath);
@@ -33,10 +29,11 @@ class Program
                 var result = Query(requestId);
 
                 //取得api url
-                
                 var urlStart = result.IndexOf("REQUEST URL: ");
                 var urlEnd = result.IndexOf(", Method:");
                 var url = result.Substring(urlStart + 13, urlEnd - urlStart - 13);
+                // V2 Url
+                var newUrl = url.Replace("?", "V2?");
 
                 //取得request內容
                 var bodyStart = result.IndexOf("REQUEST BODY: ");
@@ -46,10 +43,18 @@ class Program
                 foreach (var kvp in keyValuePairs)
                 {
                     formData[kvp.Key] = kvp.Value[0];
+                    if (string.Equals(kvp.Key, "player_name", StringComparison.OrdinalIgnoreCase))
+                    {
+                        _playerList.Add(kvp.Value[0]);
+                    }
+                    if (string.Equals(kvp.Key, "parent_bet_id", StringComparison.OrdinalIgnoreCase))
+                    {
+                        _parentBetIdList.Add(kvp.Value[0]);
+                    }
                 }
 
                 // 發送請求             
-                var response = await client.PostAsync(url, new FormUrlEncodedContent(formData));
+                var response = await client.PostAsync(newUrl, new FormUrlEncodedContent(formData));
 
                 var log = new StringBuilder($"{requestId}:");
                 if (response.IsSuccessStatusCode)
@@ -65,9 +70,13 @@ class Program
                     log.Append(response.StatusCode);
                     AppendResultsToFile(apiFailFilePath, log.ToString());
                 }
-
-                
+                Thread.Sleep(500);
             }
+
+            // 會員
+            AppendResultsToFile(apiPlayerFilePath, JsonConvert.SerializeObject(_playerList.Distinct()));
+            // 局
+            AppendResultsToFile(apiRoundFilePath, JsonConvert.SerializeObject(_parentBetIdList.Distinct()));
         }
     }
 

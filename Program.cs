@@ -7,76 +7,44 @@ class Program
 
     static async Task Main(string[] args)
     {
-        string part = "p1";
-        string csvFilePath = $"pg_req_{part}.csv";
+        string path = $"affcode.csv";
         //string csvFilePath = $"pg _test.csv";
-        string apiSuccessFilePath = $"apiSuccess_{part}.txt";
-        string apiFailFilePath = $"apiFail_{part}.txt";
-        string apiPlayerFilePath = $"apiPlayer_{part}.txt";
-        string apiRoundFilePath = $"apiRound_{part}.txt";
-        List<string> _playerList = new();
-        List<string> _parentBetIdList = new();
+        string user = $"user.txt";
+
 
         // Read CSV file
-        var requestIdList = ReadTextFile(csvFilePath);
-
+        var requestIdList = ReadTextFile(path);
+        var dic = new Dictionary<string, string>();
         // Initialize HttpClient
         using (HttpClient client = new HttpClient())
         {
+            AppendResultsToFile(user, $"total:{requestIdList.Count}");
+            int cnt = 0;
             foreach (var requestId in requestIdList)
             {
+                cnt++;
                 //取回elk REQUEST log
                 var result = Query(requestId);
 
-                //取得api url
-                var urlStart = result.IndexOf("REQUEST URL: ");
-                var urlEnd = result.IndexOf(", Method:");
-                var url = result.Substring(urlStart + 13, urlEnd - urlStart - 13);
-                // V2 Url
-                var newUrl = url.Replace("?", "V2?");
+
 
                 //取得request內容
                 var bodyStart = result.IndexOf("REQUEST BODY: ");
                 var body = result.Substring(bodyStart + 14);
-                List<KeyValue> keyValuePairs = JsonConvert.DeserializeObject<List<KeyValue>>(body);
-                var formData = new Dictionary<string, string>();
-                foreach (var kvp in keyValuePairs)
+                var singUP = JsonConvert.DeserializeObject<SingUP>(body);
+                if (dic.TryAdd($"{singUP.userName}-{singUP.affCode}", $"{singUP.userName},{singUP.affCode}"))
                 {
-                    formData[kvp.Key] = kvp.Value[0];
-                    if (string.Equals(kvp.Key, "player_name", StringComparison.OrdinalIgnoreCase))
-                    {
-                        _playerList.Add(kvp.Value[0]);
-                    }
-                    if (string.Equals(kvp.Key, "parent_bet_id", StringComparison.OrdinalIgnoreCase))
-                    {
-                        _parentBetIdList.Add(kvp.Value[0]);
-                    }
-                }
-
-                // 發送請求             
-                var response = await client.PostAsync(newUrl, new FormUrlEncodedContent(formData));
-
-                var log = new StringBuilder($"{requestId}:");
-                if (response.IsSuccessStatusCode)
-                {
-                    string apiResult = await response.Content.ReadAsStringAsync();
-                    log.Append(apiResult);
-                    Console.WriteLine("Success: " + log);
-                    AppendResultsToFile(apiSuccessFilePath, log.ToString());
-                }
-                else
-                {
-                    Console.WriteLine("Error: " + response.StatusCode);
-                    log.Append(response.StatusCode);
-                    AppendResultsToFile(apiFailFilePath, log.ToString());
-                }
-                Thread.Sleep(500);
+                    Console.WriteLine($"{cnt} Success: " + $"{singUP.userName},{singUP.affCode}");
+                }                 
+              
             }
 
-            // 會員
-            AppendResultsToFile(apiPlayerFilePath, JsonConvert.SerializeObject(_playerList.Distinct()));
-            // 局
-            AppendResultsToFile(apiRoundFilePath, JsonConvert.SerializeObject(_parentBetIdList.Distinct()));
+
+
+            foreach (var item in dic)
+            {
+                AppendResultsToFile(user, item.Value);
+            }
         }
     }
 
@@ -86,7 +54,7 @@ class Program
         foreach (var line in File.ReadLines(filePath))
         {
             var sp = line.Split(',');
-            requestIds.Add(sp[3]);
+            requestIds.Add(sp[0]);
         }
         return requestIds;
     }
@@ -96,9 +64,9 @@ class Program
         var elasticClient = GetElasticClient();
         var response = elasticClient.Search<dynamic>(a => a
                 .From(0)
-                .Size(10)
+                .Size(100)
                 .Sort(ss => ss.Descending("Timestamp"))
-                .Index("prod-seamless-2024.26")
+                .Index("prod-membersite-*")
                 .Query(q => q
                     .Bool(b => b
                         .Must(
@@ -108,7 +76,7 @@ class Program
                                 .Value(requestId)),
                               q => q.DateRange(dr => dr
                                 .Field("Timestamp")
-                                .GreaterThanOrEquals(DateTime.Now.AddDays(-1))
+                                .GreaterThanOrEquals(DateTime.Now.AddDays(-3))
                                 .LessThanOrEquals(DateTime.Now)),
                               q => q.Term(t => t
                                 .Field("Properties.SourceContext.keyword")
@@ -127,6 +95,7 @@ class Program
             }
             return sb.ToString();
         }
+
         return $"query error";
     }
 
@@ -151,6 +120,23 @@ class Program
         public string Key { get; set; }
         public List<string> Value { get; set; }
     }
+
+
+    public class SingUP
+    {
+        public string affCode { get; set; }
+        public object affId { get; set; }
+        public string areaCode { get; set; }
+        public int currencyId { get; set; }
+        public string phoneNo { get; set; }
+        public string realName { get; set; }
+        public string referralUrl { get; set; }
+        public string userLang { get; set; }
+        public string userName { get; set; }
+        public string userpwd { get; set; }
+        public string blackbox { get; set; }
+    }
+
 
 
 }

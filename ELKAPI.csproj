@@ -14,10 +14,13 @@
   </ItemGroup>
 
   <ItemGroup>
-    <None Update="pg _test.csv">
+    <None Update="dragongaming-credit.csv">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </None>
-    <None Update="pg.csv">
+    <None Update="dragongaming-test.csv">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </None>
+    <None Update="dragongaming-debit.csv">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </None>
   </ItemGroup>

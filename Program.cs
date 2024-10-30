@@ -7,13 +7,8 @@ class Program
 
     static async Task Main(string[] args)
     {
-        string part = "p1";
-        string csvFilePath = $"pg_req_{part}.csv";
-        //string csvFilePath = $"pg _test.csv";
-        string apiSuccessFilePath = $"apiSuccess_{part}.txt";
-        string apiFailFilePath = $"apiFail_{part}.txt";
-        string apiPlayerFilePath = $"apiPlayer_{part}.txt";
-        string apiRoundFilePath = $"apiRound_{part}.txt";
+        string csvFilePath = $"dragongaming-test.csv";
+
         List<string> _playerList = new();
         List<string> _parentBetIdList = new();
 
@@ -32,29 +27,14 @@ class Program
                 var urlStart = result.IndexOf("REQUEST URL: ");
                 var urlEnd = result.IndexOf(", Method:");
                 var url = result.Substring(urlStart + 13, urlEnd - urlStart - 13);
-                // V2 Url
-                var newUrl = url.Replace("?", "V2?");
 
                 //取得request內容
                 var bodyStart = result.IndexOf("REQUEST BODY: ");
                 var body = result.Substring(bodyStart + 14);
-                List<KeyValue> keyValuePairs = JsonConvert.DeserializeObject<List<KeyValue>>(body);
-                var formData = new Dictionary<string, string>();
-                foreach (var kvp in keyValuePairs)
-                {
-                    formData[kvp.Key] = kvp.Value[0];
-                    if (string.Equals(kvp.Key, "player_name", StringComparison.OrdinalIgnoreCase))
-                    {
-                        _playerList.Add(kvp.Value[0]);
-                    }
-                    if (string.Equals(kvp.Key, "parent_bet_id", StringComparison.OrdinalIgnoreCase))
-                    {
-                        _parentBetIdList.Add(kvp.Value[0]);
-                    }
-                }
+
 
                 // 發送請求             
-                var response = await client.PostAsync(newUrl, new FormUrlEncodedContent(formData));
+                var response = await client.PostAsync(url, new StringContent(body));
 
                 var log = new StringBuilder($"{requestId}:");
                 if (response.IsSuccessStatusCode)
@@ -62,21 +42,21 @@ class Program
                     string apiResult = await response.Content.ReadAsStringAsync();
                     log.Append(apiResult);
                     Console.WriteLine("Success: " + log);
-                    AppendResultsToFile(apiSuccessFilePath, log.ToString());
+                    //AppendResultsToFile(apiSuccessFilePath, log.ToString());
                 }
                 else
                 {
                     Console.WriteLine("Error: " + response.StatusCode);
                     log.Append(response.StatusCode);
-                    AppendResultsToFile(apiFailFilePath, log.ToString());
+                    //AppendResultsToFile(apiFailFilePath, log.ToString());
                 }
                 Thread.Sleep(500);
             }
 
             // 會員
-            AppendResultsToFile(apiPlayerFilePath, JsonConvert.SerializeObject(_playerList.Distinct()));
+            //AppendResultsToFile(apiPlayerFilePath, JsonConvert.SerializeObject(_playerList.Distinct()));
             // 局
-            AppendResultsToFile(apiRoundFilePath, JsonConvert.SerializeObject(_parentBetIdList.Distinct()));
+            //AppendResultsToFile(apiRoundFilePath, JsonConvert.SerializeObject(_parentBetIdList.Distinct()));
         }
     }
 
@@ -86,7 +66,7 @@ class Program
         foreach (var line in File.ReadLines(filePath))
         {
             var sp = line.Split(',');
-            requestIds.Add(sp[3]);
+            requestIds.Add(sp[1]);
         }
         return requestIds;
     }
@@ -98,7 +78,7 @@ class Program
                 .From(0)
                 .Size(10)
                 .Sort(ss => ss.Descending("Timestamp"))
-                .Index("prod-seamless-2024.26")
+                .Index("prod-seamless-*")
                 .Query(q => q
                     .Bool(b => b
                         .Must(
@@ -108,7 +88,7 @@ class Program
                                 .Value(requestId)),
                               q => q.DateRange(dr => dr
                                 .Field("Timestamp")
-                                .GreaterThanOrEquals(DateTime.Now.AddDays(-1))
+                                .GreaterThanOrEquals(DateTime.Now.AddDays(-30))
                                 .LessThanOrEquals(DateTime.Now)),
                               q => q.Term(t => t
                                 .Field("Properties.SourceContext.keyword")

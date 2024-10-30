@@ -5,9 +5,21 @@ using Newtonsoft.Json;
 class Program
 {
 
+    public class param
+    {
+        public string account_id { get; set; }
+        public string transaction_id { get; set; }
+        public string round_id { get; set; }
+    }
+
     static async Task Main(string[] args)
     {
-        string csvFilePath = $"dragongaming-test.csv";
+        string part = "1";
+        string apiSuccessFilePath = $"apiSuccess_{part}.txt";
+        string apiFailFilePath = $"apiFail_{part}.txt";
+        string apiPlayerFilePath = $"apiPlayer_{part}.txt";
+        string apiRoundFilePath = $"apiRound_{part}.txt";
+        string csvFilePath = $"dragongaming_req_sort_{part}.csv";
 
         List<string> _playerList = new();
         List<string> _parentBetIdList = new();
@@ -27,11 +39,17 @@ class Program
                 var urlStart = result.IndexOf("REQUEST URL: ");
                 var urlEnd = result.IndexOf(", Method:");
                 var url = result.Substring(urlStart + 13, urlEnd - urlStart - 13);
-
+                if (url == "http://tp.nova88.net/DragonGaming/debit" || url == "https://tp.nova88.net/DragonGaming/debit")
+                {
+                    url = $"{url}/postman";
+                }
                 //取得request內容
                 var bodyStart = result.IndexOf("REQUEST BODY: ");
                 var body = result.Substring(bodyStart + 14);
 
+                var pm = JsonConvert.DeserializeObject<param>(body);
+                _playerList.Add(pm.account_id);
+                _parentBetIdList.Add(pm.round_id);
 
                 // 發送請求             
                 var response = await client.PostAsync(url, new StringContent(body));
@@ -42,21 +60,21 @@ class Program
                     string apiResult = await response.Content.ReadAsStringAsync();
                     log.Append(apiResult);
                     Console.WriteLine("Success: " + log);
-                    //AppendResultsToFile(apiSuccessFilePath, log.ToString());
+                    _ = AppendResultsToFile(apiSuccessFilePath, log.ToString());
                 }
                 else
                 {
                     Console.WriteLine("Error: " + response.StatusCode);
                     log.Append(response.StatusCode);
-                    //AppendResultsToFile(apiFailFilePath, log.ToString());
+                    _ = AppendResultsToFile(apiFailFilePath, log.ToString());
                 }
                 Thread.Sleep(500);
             }
 
             // 會員
-            //AppendResultsToFile(apiPlayerFilePath, JsonConvert.SerializeObject(_playerList.Distinct()));
+            _ = AppendResultsToFile(apiPlayerFilePath, JsonConvert.SerializeObject(_playerList.Distinct()));
             // 局
-            //AppendResultsToFile(apiRoundFilePath, JsonConvert.SerializeObject(_parentBetIdList.Distinct()));
+            _ = AppendResultsToFile(apiRoundFilePath, JsonConvert.SerializeObject(_parentBetIdList.Distinct()));
         }
     }
 
